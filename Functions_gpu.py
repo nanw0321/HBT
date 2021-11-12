@@ -15,7 +15,7 @@ def delta(tpulse,Natom):
 	return tlit, I_ratio, non_linearity
 
 def square(tpulse,Natom):
-	if tpulse == 0: tpusle += 1e-3
+	if tpulse == 0: tpulse += 1e-3
 	tlit = np.random.random(Natom)*tpulse
 	I_ratio = 1
 	non_linearity = 1/tpulse
@@ -25,7 +25,7 @@ def squaremono(tpulse,Natom):
 	if tpulse == 0: tpulse += 1e-3
 	tsamp = np.arange(1e7)/1e7 *(tpulse+20)						# sampling range
 	tsamp = tsamp-tsamp.mean()									# shifted sampling range (centering at t=0)
-	psamp = -erf((tsamp-tpulse/2)/(2**0.5 * 7.5/2.36)) + erf((tsamp+tpulse/2)/(2**0.5 * 7.5/2.36))
+	psamp = -erf((tsamp-tpulse/2)/(2**0.5 * 4.0/2.36)) + erf((tsamp+tpulse/2)/(2**0.5 * 4.0/2.36))
 	psamp = psamp/psamp.sum()
 	tlit = np.random.choice(tsamp,p=psamp,size=Natom)
 	I_ratio = 1
@@ -37,7 +37,7 @@ def Gaus(tpulse,Natom):
 	width = tpulse/2.36
 	tlit = np.random.normal(0,width,Natom)
 	# peak pulse intensity / average pulse intensity for non-linear effect observation
-	tt = np.linspace(-tpulse/2-width,tpulse/2+width,tpulse*100)
+	tt = np.linspace(-tpulse/2-width,tpulse/2+width,int(tpulse*10000))
 	I_t = np.exp(-tt**2/(2*width**2))
 	I_ratio = I_t.max()/I_t.mean()
 	non_linearity = 1/(2*np.sqrt(np.pi)*width)
@@ -45,10 +45,10 @@ def Gaus(tpulse,Natom):
 
 def Gausmono(tpulse,Natom):
 	if tpulse == 0: tpulse += 1e-3
-	width = (tpulse**2+7.5**2)**0.5/2.36
+	width = (tpulse**2+4.0**2)**0.5/2.36		# assume super short pulse through 2 bounce C111 stretches to 4fs
 	tlit = np.random.normal(0,width,Natom)
 	# peak pulse intensity / average pulse intensity for non-linear effect observation
-	tt = np.linspace(-tpulse/2-width,tpulse/2+width,tpulse*100)
+	tt = np.linspace(-tpulse/2-width,tpulse/2+width,int(tpulse*10000))
 	I_t = np.exp(-tt**2/(2*width**2))
 	I_ratio = I_t.max()/I_t.mean()
 	non_linearity = 1/(2*np.sqrt(np.pi)*width)
@@ -100,13 +100,14 @@ def SASE(tpulse,Natom):
 	return tlit, I_ratio, non_linearity
 
 def SASEmono(tpulse,Natom):
+	if tpulse == 0: tpulse += 1e-3
 	tcs = np.random.random(150) * 1000							# randomly throw in 150 centers over 1ps
 	tcs = tcs[(tcs>5)&(tcs<5+tpulse)]							# crop window to get actual centers of Gaussian
+	try: tcs[0]
+	except: tcs = np.random.random(1)*tpulse+5.					# if none, make one
 	numGaus = int(tcs.size)
-	if numGaus == 0:
-		numGaus = 1
-		tcs = np.random.random(numGaus)*tpulse					# if none, make one
-	widths = np.random.uniform(low=3,high=3.5,size=numGaus)		# widths of Gaussian
+
+	widths = np.random.uniform(low=1.65,high=1.75,size=numGaus)	# rms widths assuming mono stretches to 4fs FW (1.7fs rms)
 	Amps = np.random.random(numGaus); Amps = Amps/Amps.sum()	# amplitudes of Gaussian
 	Ns = np.rint(Amps * Natom)									# number in each Gaussian
 	# if total number of atoms in each slice does not equal to Natom, randomly fill in the missing ones
@@ -136,7 +137,7 @@ def SASEmono(tpulse,Natom):
 	tlit = np.concatenate(tlit); tlit = tlit-tlit.mean()
 
 	# peak pulse intensity / average pulse intensity for non-linear effect observation
-	tt = np.linspace(0,tpulse+10,int(tpulse*1000))
+	tt = np.linspace(0,tpulse+10,int(tpulse*100000))
 	I_t = np.zeros_like(tt)
 	for j in range(numGaus):
 		I_t += Amps[j] * np.exp(-(tt-tcs[j])**2/(2*widths[j]**2))
@@ -147,10 +148,11 @@ def SASEmono(tpulse,Natom):
 ##########
 # source parameter generation
 ##########
-def sframe(tpulse,Natom,dsamp,tlit):
+def sframe(tpulse,Natom,dsamp,tlit,spotsig):
 	radius = np.random.normal(spotpos,spotsig,Natom)		# radial positions (Gaussian)
 	ths = 2 * np.pi * np.random.random(Natom)				# angular positions (Uniform)
 	phs = 2 * np.pi * np.random.random(Natom)				# initial phases	(Uniform)
+	pols = 2 * np.pi * np.random.random(Natom)				# light polarization (Uniform)
 	omgs = np.random.choice(omglist,p=plist,size=Natom)		# angular frequencies (Sampled)	
 
 	ks = omgs/c 											# wavenumbers
@@ -176,30 +178,37 @@ def sframe(tpulse,Natom,dsamp,tlit):
 	zs = -ysource/np.sqrt(2)
 	# Actual light-up time including path-length difference (t=0 when incident x-ray hits origin in lab coordinate)
 	ts = tlit*1e-15 - ys/c
-	return xs,ys,zs,ts,phs,omgs,ks,taus
+	return xs,ys,zs,ts,phs,omgs,ks,taus,pols
 
 ##########
-# time axis calculation
+# memory transfer
 ##########
-dtype1 = 'float64[:,:,:],float64[:,:,:],'
-dtype2 = 'float64[:],float64[:],float64[:],float64[:],'
-dtype3 = 'float64[:],float64[:],float64'
-@cuda.jit('void('+dtype1+dtype2+dtype3+')',cache=True)
-def getaxis(rs,tas,
-	xs,ys,zs,ts,
-	xdet,ydet,r):
-	i, j = cuda.grid(2)
-	Nx = xdet.size; Ny = ydet.size; Natom = xs.size
-	# loop through pixels
-	if i<Nx and j<Ny:
-		# loop through atoms
-		for natom in range(Natom):
-			# distance between atom and pixel
-			rs[natom,i,j] = math.sqrt(
-				(xs[natom]-xdet[i])**2+(ys[natom]-ydet[j])**2+(zs[natom]-r)**2
-				)
-			# spatial component of the spherical wave: 1/r*exp[i(kr+phi)]
-			tas[natom,i,j] = ts[natom] + rs[natom,i,j]/299792458.
+def strans(xs,ys,zs,ts,phs,omgs,ks,taus,pols,dtslist,xdet,ydet,r):
+	''' 
+	xs, ys, zs: source positions, shape(N)
+	ts: time of emission, shape(N)
+	phs: initial phase, shape(N)
+	omgs: angular frequencies, shape(N)
+	ks: wave vectors, shape(N)
+	taus: spontaneous emission lifetime, shape(N)
+	pols: polarization angle, shape(N)
+	dtslist: spontaneous emission lifetime for each emission line, shape(3)
+	xdeg, ydet: detector pixel position, shape(Npxl)
+	r: distance betweeen source and detector in lab frame, shape(1)
+	'''
+	xsg = cuda.to_device(xs)
+	ysg = cuda.to_device(ys)
+	zsg = cuda.to_device(zs)
+	tsg = cuda.to_device(ts)
+	phsg = cuda.to_device(phs)
+	omgsg = cuda.to_device(omgs)
+	ksg = cuda.to_device(ks)
+	tausg = cuda.to_device(taus)
+	dtslistg = cuda.to_device(dtslist)
+
+	xdetg = cuda.to_device(xdet)
+	ydetg = cuda.to_device(ydet)
+	rg = cuda.to_device(r)
 
 ##########
 # spatial component calculation
@@ -207,8 +216,8 @@ def getaxis(rs,tas,
 dtype1 = 'float64[:,:,:],complex128[:,:,:],float64[:,:,:],'
 dtype2 = 'float64[:],float64[:],float64[:],float64[:],float64[:],float64[:],'
 dtype3 = 'float64[:],float64[:],float64'
-@cuda.jit('void('+dtype1+dtype2+dtype3+')',cache=True)
-def spatial(rs,Fs,tas,
+@cuda.jit('void('+dtype1+dtype2+dtype3+')')
+def spatial(rs,Fs,ta,
 	xs,ys,zs,ks,ts,phs,
 	xdet,ydet,r):
 	i, j = cuda.grid(2)
@@ -225,13 +234,14 @@ def spatial(rs,Fs,tas,
 			Fs[natom,i,j] = complex(1/rs[natom,i,j])*(
 				math.cos(ks[natom]*rs[natom,i,j]+phs[natom])+1j*math.sin(ks[natom]*rs[natom,i,j]+phs[natom])
 				)
-			tas[natom,i,j] = ts[natom] + rs[natom,i,j]/299792458.
+			# wavefront time of arrival = time of emission + r/c
+			ta[natom,i,j] = ts[natom] + rs[natom,i,j]/299792458.
 
 ##########
 # temporal component calculation
 ##########
 # phase of all atoms
-@cuda.jit('void(complex128[:,:],float64[:],float64[:])',cache=True)
+@cuda.jit('void(complex128[:,:],float64[:],float64[:])')
 def temporal(T2,omgs,taxis):
 	nslice,natom = cuda.grid(2)
 	Nslice, Natom = T2.shape
@@ -242,11 +252,11 @@ def temporal(T2,omgs,taxis):
 # speckle pattern simulation
 ##########
 # field strength per time slice, reinitialize if changing parameters
-dtype1 = 'complex128[:,:],complex128[:,:],complex128[:,:],complex128[:,:,:],'
-dtype2 = 'float64,complex128[:],float64[:,:,:],float64[:],float64[:]'
-@cuda.jit('void('+dtype1+dtype2+')',cache=True)
+dtype1 = 'complex128[:,:,:],complex128[:,:,:],complex128[:,:,:],complex128[:,:,:],'
+dtype2 = 'float64,complex128[:],float64[:,:,:],float64[:],float64[:],float64[:],float64[:]'
+@cuda.jit('void('+dtype1+dtype2+')')
 def getslice(E1slice,E2slice,E3slice,Fs,
-	t,T2slice,ta,taus,dtslist):
+	t,T2slice,ta,taus,polx,poly,dtslist):
 	i,j = cuda.grid(2)
 	Natom,Nx,Ny = Fs.shape
 	# loop through pixels
@@ -259,26 +269,33 @@ def getslice(E1slice,E2slice,E3slice,Fs,
 				A = complex(math.exp(-(t-ta[natom,i,j])/taus[natom]))
 				# check color and add to field container accordingly
 				if taus[natom] == dtslist[0]:
-					E1slice[i,j] += A * T2slice[natom] * Fs[natom,i,j]
+					E1slice[i,j,0] += A * T2slice[natom] * Fs[natom,i,j] * polx[natom]
+					E1slice[i,j,1] += A * T2slice[natom] * Fs[natom,i,j] * poly[natom]
 				if taus[natom] == dtslist[1]:
-					E2slice[i,j] += A * T2slice[natom] * Fs[natom,i,j]
+					E2slice[i,j,0] += A * T2slice[natom] * Fs[natom,i,j] * polx[natom]
+					E2slice[i,j,1] += A * T2slice[natom] * Fs[natom,i,j] * poly[natom]
 				if taus[natom] == dtslist[2]:
-					E3slice[i,j] += A * T2slice[natom] * Fs[natom,i,j]
+					E3slice[i,j,0] += A * T2slice[natom] * Fs[natom,i,j] * polx[natom]
+					E3slice[i,j,1] += A * T2slice[natom] * Fs[natom,i,j] * poly[natom]
 
 # intensity per time slice (only used for comparing non-linear effect and speckle contrast)
-@cuda.jit('void(float64[:,:,:],complex128[:,:,:],complex128[:,:,:],complex128[:,:,:])',cache=True)
+@cuda.jit('void(float64[:,:,:],complex128[:,:,:,:],complex128[:,:,:,:],complex128[:,:,:,:])')
 def get_imgs(Imgs,Es1,Es2,Es3):
 	i,j = cuda.grid(2)
-	Nslice,Nx,Ny = Es1.shape
+	Nslice,Nx,Ny,_ = Es1.shape
 	if i<Nx and j<Ny:
 		for nslice in range(Nslice):
-			Imgs[nslice,i,j] = abs(Es1[nslice,i,j])**2+abs(Es2[nslice,i,j])**2+abs(Es3[nslice,i,j])**2
+			# adding intensities in two polarizations in each time slice
+			Imgs[nslice,i,j] += abs(Es1[nslice,i,j,0])**2+abs(Es2[nslice,i,j,0])**2+abs(Es3[nslice,i,j,0])**2
+			Imgs[nslice,i,j] += abs(Es1[nslice,i,j,1])**2+abs(Es2[nslice,i,j,1])**2+abs(Es3[nslice,i,j,1])**2
 
 # overall intensity (image), reinitialize if changing parameters
-@cuda.jit('void(float64[:,:],complex128[:,:,:],complex128[:,:,:],complex128[:,:,:])',cache=True)
+@cuda.jit('void(float64[:,:],complex128[:,:,:,:],complex128[:,:,:,:],complex128[:,:,:,:])')
 def get_img(Img,Es1,Es2,Es3):
 	i,j = cuda.grid(2)
-	Nslice,Nx,Ny = Es1.shape
+	Nslice,Nx,Ny,_ = Es1.shape
 	if i<Nx and j<Ny:
 		for nslice in range(Nslice):
-			Img[i,j] += abs(Es1[nslice,i,j])**2+abs(Es2[nslice,i,j])**2+abs(Es3[nslice,i,j])**2
+			# adding intensities in two polarizations
+			Img[i,j] += abs(Es1[nslice,i,j,0])**2+abs(Es2[nslice,i,j,0])**2+abs(Es3[nslice,i,j,0])**2
+			Img[i,j] += abs(Es1[nslice,i,j,1])**2+abs(Es2[nslice,i,j,1])**2+abs(Es3[nslice,i,j,1])**2

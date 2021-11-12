@@ -1,0 +1,6 @@
+# ignore files
+*.ini
+*.dat
+*.ppk
+*.h5
+*.gsheet
