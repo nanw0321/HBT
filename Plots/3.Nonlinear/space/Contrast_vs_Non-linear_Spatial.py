@@ -15,7 +15,7 @@ pulseshape = 'Gaussian'
 siglow = 1; sighigh = 100
 lowlog = np.log(siglow); highlog = np.log(sighigh)
 
-njobs = 100			# number of jobs
+njobs = 19			# number of jobs
 holder_on = 0		# using holder or not
 io = 1				# storing simulation or not
 
@@ -40,6 +40,7 @@ if holder_on == 1:
 	contrast_holder = np.zeros(njobs)
 
 for njob in tqdm(np.arange(njobs),desc='jobs'):
+	njob += 181 	# offset if too many jobs and restarting in the middle
 	spotsig = np.exp(np.random.uniform(low=lowlog,high=highlog))*1e-6		# uniformly sample focal spot size in log scale
 	nl_s = 1/(4*np.pi*spotsig**2)
 	# generate source information and feed to GPU

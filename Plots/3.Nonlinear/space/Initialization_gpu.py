@@ -24,7 +24,7 @@ spotsig = 2e-6								# focal spot sigma
 spotsep = 0									# focal spot separation (0 if single spot)
 
 # Detector pixel information
-pxlsize = 0.5e-6								# single pixel size (m)
+pxlsize = 5e-6								# single pixel size (m)
 Npxl = 100									# number of pixels in each dimension
 detsize = pxlsize*Npxl						# detector size (m)
 
